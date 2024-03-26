@@ -537,7 +537,6 @@ def copy_parquet_files(builder: DatasetBuilder) -> list[CommitOperationCopy]:
             # data_file format for hub files is hf://datasets/{repo_id}@{revision}/{path_in_repo}
             src_revision, src_path_in_repo = data_file.split("@")[1].split("/", 1)
             src_revision = unquote(src_revision)
-            src_path_in_repo = unquote(src_path_in_repo)
             parquet_file = ParquetFile(
                 config=builder.config.name, split=split, shard_idx=shard_idx, num_shards=len(data_files[split])
             )
