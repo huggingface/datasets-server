@@ -90,15 +90,8 @@ def test_full_text_search(
     filtered_df = pd.DataFrame(expected_result)
     expected_table = pa.Table.from_pandas(filtered_df, schema=pa.schema(fields), preserve_index=False)
 
-    # assert search results normal mode (full table scan)
-    (num_rows_total, pa_table) = full_text_search(False, index_file_location, query, offset, length)
-    assert num_rows_total is not None
-    assert pa_table is not None
-    assert num_rows_total == expected_num_rows_total
-    assert pa_table == expected_table
-
-    # assert search results with FTS by stage table
-    (num_rows_total, pa_table) = full_text_search(True, index_file_location, query, offset, length)
+    # assert search results
+    (num_rows_total, pa_table) = full_text_search(index_file_location, query, offset, length)
     assert num_rows_total is not None
     assert pa_table is not None
     assert num_rows_total == expected_num_rows_total

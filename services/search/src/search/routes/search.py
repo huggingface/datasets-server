@@ -48,61 +48,26 @@ from search.duckdb_connection import duckdb_connect
 
 logger = logging.getLogger(__name__)
 
-DATASETS_WITH_FTS_BY_STAGE_TABLE = ["wikimedia/wikipedia", "asoria/search_test"]
-
-FTS_FULL_TABLE_COUNT_COMMAND = (
-    "SELECT COUNT(*) FROM (SELECT __hf_index_id, fts_main_data.match_bm25(__hf_index_id, ?) AS __hf_fts_score FROM"
-    " data) A WHERE __hf_fts_score IS NOT NULL;"
-)
-FTS_FULL_TABLE_COMMAND = (
-    "SELECT * EXCLUDE (__hf_fts_score) FROM (SELECT *, fts_main_data.match_bm25(__hf_index_id, ?) AS __hf_fts_score"
-    " FROM data) A WHERE __hf_fts_score IS NOT NULL ORDER BY __hf_fts_score DESC OFFSET {offset} LIMIT {length};"
-)
-
-
-def _search_full_table(
-    query: str, offset: int, length: int, index_file_location: str, extensions_directory: Optional[str] = None
-) -> tuple[int, pa.Table]:
-    with duckdb_connect(extensions_directory=extensions_directory, database=index_file_location) as con:
-        count_result = con.execute(query=FTS_FULL_TABLE_COUNT_COMMAND, parameters=[query]).fetchall()
-        num_rows_total = count_result[0][0]  # it will always return a non-empty list with one element in a tuple
-        logging.info(f"got {num_rows_total=} results for {query=} using full table scan {offset=} {length=}")
-        pa_table = con.execute(
-            query=FTS_FULL_TABLE_COMMAND.format(offset=offset, length=length),
-            parameters=[query],
-        ).arrow()
-    return num_rows_total, pa_table
-
-
 FTS_STAGE_TABLE_COMMAND = "SELECT * FROM (SELECT __hf_index_id, fts_main_data.match_bm25(__hf_index_id, ?) AS __hf_fts_score FROM data) A WHERE __hf_fts_score IS NOT NULL;"
 JOIN_STAGE_AND_DATA_COMMAND = (
     "SELECT data.* FROM fts_stage_table JOIN data USING(__hf_index_id) ORDER BY fts_stage_table.__hf_fts_score DESC;"
 )
 
 
-def _search_stage_table(
-    query: str, offset: int, length: int, index_file_location: str, extensions_directory: Optional[str] = None
-) -> tuple[int, pa.Table]:
-    with duckdb_connect(extensions_directory=extensions_directory, database=index_file_location) as con:
-        fts_stage_table = con.execute(query=FTS_STAGE_TABLE_COMMAND, parameters=[query]).arrow()
-        num_rows_total = fts_stage_table.num_rows
-        logging.info(f"got {num_rows_total=} results for {query=} using stage table {offset=} {length=}")
-        fts_stage_table = fts_stage_table.sort_by([("__hf_fts_score", "descending")]).slice(offset, length)
-        pa_table = con.execute(query=JOIN_STAGE_AND_DATA_COMMAND).arrow()
-    return num_rows_total, pa_table
-
-
 def full_text_search(
-    fts_by_stage_table: bool,
     index_file_location: str,
     query: str,
     offset: int,
     length: int,
     extensions_directory: Optional[str] = None,
 ) -> tuple[int, pa.Table]:
-    if fts_by_stage_table:
-        return _search_stage_table(query, offset, length, index_file_location, extensions_directory)
-    return _search_full_table(query, offset, length, index_file_location, extensions_directory)
+    with duckdb_connect(extensions_directory=extensions_directory, database=index_file_location) as con:
+        fts_stage_table = con.execute(query=FTS_STAGE_TABLE_COMMAND, parameters=[query]).arrow()
+        num_rows_total = fts_stage_table.num_rows
+        logging.debug(f"got {num_rows_total=} results for {query=} using stage table {offset=} {length=}")
+        fts_stage_table = fts_stage_table.sort_by([("__hf_fts_score", "descending")]).slice(offset, length)
+        pa_table = con.execute(query=JOIN_STAGE_AND_DATA_COMMAND).arrow()
+    return num_rows_total, pa_table
 
 
 async def create_response(
@@ -232,10 +197,8 @@ def create_search_endpoint(
 
                 with StepProfiler(method="search_endpoint", step="perform FTS command"):
                     logging.debug(f"connect to index file {index_file_location}")
-                    fts_by_stage_table = dataset in DATASETS_WITH_FTS_BY_STAGE_TABLE
                     num_rows_total, pa_table = await anyio.to_thread.run_sync(
                         full_text_search,
-                        fts_by_stage_table,
                         index_file_location,
                         query,
                         offset,
