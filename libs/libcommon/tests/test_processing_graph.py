@@ -141,7 +141,7 @@ def test_graph() -> None:
         ),
         (
             "dataset-info",
-            ["dataset-compatible-libraries", "dataset-modalities"],
+            ["dataset-compatible-libraries", "dataset-modalities", "dataset-croissant-crumbs"],
             ["dataset-config-names", "config-info"],
             ["dataset-config-names", "config-parquet-and-info", "config-info"],
         ),
@@ -380,6 +380,12 @@ def test_graph() -> None:
                 "split-descriptive-statistics",
                 "split-is-valid",
             ],
+        ),
+        (
+            "dataset-croissant-crumbs",
+            [],
+            ["dataset-info"],
+            ["dataset-config-names", "config-parquet-and-info", "config-info", "dataset-info"],
         ),
     ],
 )

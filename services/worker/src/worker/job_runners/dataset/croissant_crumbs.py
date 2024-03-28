@@ -1,36 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2024 The HuggingFace Authors.
+
 import logging
 import re
 from collections.abc import Mapping
-from http import HTTPStatus
 from itertools import islice
-from typing import Any, Optional
+from typing import Any
 
 from datasets import ClassLabel, Features, Image, Value
-from libapi.authentication import auth_check
-from libapi.exceptions import (
-    ApiError,
-    MissingRequiredParameterError,
-    UnexpectedApiError,
-)
-from libapi.request import get_request_parameter
-from libapi.utils import (
-    Endpoint,
-    are_valid_parameters,
-    get_cache_entry_from_step,
-    get_json_api_error_response,
-    get_json_error_response,
-    get_json_ok_response,
-)
-from libcommon.constants import CROISSANT_MAX_CONFIGS, DATASET_INFO_KIND
+from libcommon.constants import CROISSANT_MAX_CONFIGS
 from libcommon.croissant_utils import get_record_set
-from libcommon.prometheus import StepProfiler
-from libcommon.storage_client import StorageClient
-from starlette.requests import Request
-from starlette.responses import Response
+from libcommon.exceptions import PreviousStepFormatError
+from libcommon.simple_cache import (
+    get_previous_step_or_raise,
+)
 
-MAX_COLUMNS = 1_000
-# ^ same value as the default for FIRST_ROWS_COLUMNS_MAX_NUMBER (see services/worker)
-
+from worker.dtos import CompleteJobResult
+from worker.job_runners.dataset.dataset_job_runner import DatasetJobRunner
 
 HF_TO_CROISSANT_VALUE_TYPE = {
     "string": "sc:Text",
@@ -70,7 +56,7 @@ def _remove_none_values(json: Mapping[str, Any]) -> Mapping[str, Any]:
 
 
 def get_croissant_crumbs_from_dataset_infos(
-    dataset: str, infos: list[Mapping[str, Any]], partial: bool, full_jsonld: bool
+    dataset: str, infos: list[Mapping[str, Any]], partial: bool, truncated_configs: bool
 ) -> Mapping[str, Any]:
     """Generates the "crumbs" of the Croissant JSON-LD metadata from the dataset infos.
 
@@ -117,9 +103,6 @@ def get_croissant_crumbs_from_dataset_infos(
         record_set_name = get_record_set(dataset=dataset, config_name=config)
         record_set_name = _escape_name(record_set_name, names)
         for column, feature in features.items():
-            if len(fields) >= MAX_COLUMNS and not full_jsonld:
-                description_body += f"\n- {len(features) - MAX_COLUMNS} skipped column{'s' if len(features) - MAX_COLUMNS > 1 else ''} (max number of columns reached)"
-                break
             fields_names: set[str] = set()
             field_name = f"{record_set_name}/{_escape_name(column, fields_names)}"
             if isinstance(feature, Value) and feature.dtype in HF_TO_CROISSANT_VALUE_TYPE:
@@ -165,6 +148,8 @@ def get_croissant_crumbs_from_dataset_infos(
         description = f"{dataset} - '{config}' subset"
         if partial:
             description += " (first 5GB)"
+        if truncated_configs:
+            description += f" (only the first {CROISSANT_MAX_CONFIGS} subsets are included in this metadata)"
         if len(splits) > 1:
             description_body += f"\n- {len(splits)} split{'s' if len(splits) > 1 else ''}: {', '.join(splits)}"
         if skipped_columns:
@@ -231,94 +216,48 @@ def get_croissant_crumbs_from_dataset_infos(
     )
 
 
-def _get_full_jsonld_parameter(request: Request) -> bool:
-    """Parameter to retrieve the full JSON-LD (full=True) or a truncated/abridged JSON-LD (full=False) with less features."""
-    full_jsonld = get_request_parameter(request, "full", default="true")
-    if full_jsonld.lower() == "false":
-        return False
-    return True
+def compute_croissant_crumbs_response(dataset: str) -> Mapping[str, Any]:
+    """
+    Get the response of 'dataset-croissant-crumbs' for one specific dataset on huggingface.co.
+
+    If the dataset contains more than 100 configs, only the first 100 configs are included in the croissant metadata parts.
+
+    Here, we don't truncate the number of fields. See the /croissant-crumbs endpoint implementation in services/api for
+      truncation of the fields.
+
+    Args:
+        dataset (`str`):
+            A namespace (user or an organization) and a repo name separated by a `/`.
+
+    Raises:
+        [~`libcommon.simple_cache.CachedArtifactError`]:
+          If the previous step gave an error.
+        [~`libcommon.exceptions.PreviousStepFormatError`]:
+            If the content of the previous step has not the expected format
+
+    Returns `dict[str, Any]`: the croissant metadata parts.
+    """
+    logging.info(f"compute 'dataset-croissant-crumbs' for {dataset=}")
+
+    dataset_info_response = get_previous_step_or_raise(kind="dataset-info", dataset=dataset)
+    try:
+        content = dataset_info_response["content"]
+        truncated_configs = len(content["dataset_info"]) > CROISSANT_MAX_CONFIGS
+        infos = list(islice(content["dataset_info"].values(), CROISSANT_MAX_CONFIGS))
+        partial = content["partial"]
+        croissant_crumbs = get_croissant_crumbs_from_dataset_infos(
+            dataset=dataset, infos=infos, partial=partial, truncated_configs=truncated_configs
+        )
+    except KeyError as e:
+        raise PreviousStepFormatError("Previous step 'dataset-info' did not return the expected content.", e) from e
+    return croissant_crumbs
 
 
-def create_croissant_crumbs_endpoint(
-    hf_endpoint: str,
-    blocked_datasets: list[str],
-    hf_token: Optional[str] = None,
-    hf_jwt_public_keys: Optional[list[str]] = None,
-    hf_jwt_algorithm: Optional[str] = None,
-    external_auth_url: Optional[str] = None,
-    hf_timeout_seconds: Optional[float] = None,
-    max_age_long: int = 0,
-    max_age_short: int = 0,
-    storage_clients: Optional[list[StorageClient]] = None,
-    endpoint_name: str = "croissant-crumbs",
-) -> Endpoint:
-    async def croissant_crumbs_endpoint(request: Request) -> Response:
-        context = f"endpoint: {endpoint_name}"
-        method = "croissant_crumbs_endpoint"
-        revision: Optional[str] = None
-        with StepProfiler(method=method, step="all", context=context):
-            try:
-                with StepProfiler(
-                    method=method,
-                    step="validate parameters and get processing steps",
-                    context=context,
-                ):
-                    full_jsonld = _get_full_jsonld_parameter(request)
-                    dataset = get_request_parameter(request, "dataset")
-                    logging.debug(f"endpoint={endpoint_name} dataset={dataset}")
-                    if not are_valid_parameters([dataset]):
-                        raise MissingRequiredParameterError("Parameter 'dataset' is required")
-                # if auth_check fails, it will raise an exception that will be caught below
-                with StepProfiler(method=method, step="check authentication", context=context):
-                    await auth_check(
-                        dataset,
-                        external_auth_url=external_auth_url,
-                        request=request,
-                        hf_jwt_public_keys=hf_jwt_public_keys,
-                        hf_jwt_algorithm=hf_jwt_algorithm,
-                        hf_timeout_seconds=hf_timeout_seconds,
-                    )
-                # getting result based on processing steps
-                with StepProfiler(method=method, step="get info cache entry", context=context):
-                    info_result = get_cache_entry_from_step(
-                        processing_step_name=DATASET_INFO_KIND,
-                        dataset=dataset,
-                        config=None,
-                        split=None,
-                        hf_endpoint=hf_endpoint,
-                        hf_token=hf_token,
-                        blocked_datasets=blocked_datasets,
-                        hf_timeout_seconds=hf_timeout_seconds,
-                        storage_clients=storage_clients,
-                    )
-                content = info_result["content"]
-                http_status = info_result["http_status"]
-                error_code = info_result["error_code"]
-                revision = info_result["dataset_git_revision"]
-                if http_status == HTTPStatus.OK:
-                    infos = list(islice(content["dataset_info"].values(), CROISSANT_MAX_CONFIGS))
-                    partial = content["partial"]
-                    with StepProfiler(method=method, step="generate croissant crumbs json", context=context):
-                        croissant_crumbs = get_croissant_crumbs_from_dataset_infos(
-                            dataset=dataset,
-                            infos=infos,
-                            partial=partial,
-                            full_jsonld=full_jsonld,
-                        )
-                    with StepProfiler(method=method, step="generate OK response", context=context):
-                        return get_json_ok_response(content=croissant_crumbs, max_age=max_age_long, revision=revision)
-                else:
-                    with StepProfiler(method=method, step="generate error response", context=context):
-                        return get_json_error_response(
-                            content=content,
-                            status_code=http_status,
-                            max_age=max_age_short,
-                            error_code=error_code,
-                            revision=revision,
-                        )
-            except Exception as e:
-                error = e if isinstance(e, ApiError) else UnexpectedApiError("Unexpected error.", e)
-                with StepProfiler(method=method, step="generate API error response", context=context):
-                    return get_json_api_error_response(error=error, max_age=max_age_short, revision=revision)
+class DatasetCroissantCrumbsJobRunner(DatasetJobRunner):
+    @staticmethod
+    def get_job_type() -> str:
+        return "dataset-croissant-crumbs"
 
-    return croissant_crumbs_endpoint
+    def compute(self) -> CompleteJobResult:
+        response_content = compute_croissant_crumbs_response(dataset=self.dataset)
+        return CompleteJobResult(response_content)

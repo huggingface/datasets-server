@@ -26,6 +26,7 @@ from worker.job_runners.config.size import ConfigSizeJobRunner
 from worker.job_runners.config.split_names import ConfigSplitNamesJobRunner
 from worker.job_runners.dataset.compatible_libraries import DatasetCompatibleLibrariesJobRunner
 from worker.job_runners.dataset.config_names import DatasetConfigNamesJobRunner
+from worker.job_runners.dataset.croissant_crumbs import DatasetCroissantCrumbsJobRunner
 from worker.job_runners.dataset.duckdb_index_size import (
     DatasetDuckdbIndexSizeJobRunner,
 )
@@ -198,7 +199,6 @@ class JobRunnerFactory(BaseJobRunnerFactory):
                 statistics_cache_directory=self.statistics_cache_directory,
                 parquet_metadata_directory=self.parquet_metadata_directory,
             )
-
         if job_type == SplitDuckDbIndexJobRunner.get_job_type():
             return SplitDuckDbIndexJobRunner(
                 job_info=job_info,
@@ -206,38 +206,37 @@ class JobRunnerFactory(BaseJobRunnerFactory):
                 duckdb_index_cache_directory=self.duckdb_index_cache_directory,
                 parquet_metadata_directory=self.parquet_metadata_directory,
             )
-
         if job_type == ConfigDuckdbIndexSizeJobRunner.get_job_type():
             return ConfigDuckdbIndexSizeJobRunner(
                 job_info=job_info,
                 app_config=self.app_config,
             )
-
         if job_type == DatasetDuckdbIndexSizeJobRunner.get_job_type():
             return DatasetDuckdbIndexSizeJobRunner(
                 job_info=job_info,
                 app_config=self.app_config,
             )
-
         if job_type == DatasetHubCacheJobRunner.get_job_type():
             return DatasetHubCacheJobRunner(
                 job_info=job_info,
                 app_config=self.app_config,
             )
-
         if job_type == DatasetCompatibleLibrariesJobRunner.get_job_type():
             return DatasetCompatibleLibrariesJobRunner(
                 job_info=job_info,
                 app_config=self.app_config,
                 hf_datasets_cache=self.hf_datasets_cache,
             )
-
         if job_type == DatasetModalitiesJobRunner.get_job_type():
             return DatasetModalitiesJobRunner(
                 job_info=job_info,
                 app_config=self.app_config,
             )
-
+        if job_type == DatasetCroissantCrumbsJobRunner.get_job_type():
+            return DatasetCroissantCrumbsJobRunner(
+                job_info=job_info,
+                app_config=self.app_config,
+            )
         supported_job_types = [
             DatasetConfigNamesJobRunner.get_job_type(),
             ConfigSplitNamesJobRunner.get_job_type(),
@@ -264,5 +263,6 @@ class JobRunnerFactory(BaseJobRunnerFactory):
             DatasetHubCacheJobRunner.get_job_type(),
             DatasetCompatibleLibrariesJobRunner.get_job_type(),
             DatasetModalitiesJobRunner.get_job_type(),
+            DatasetCroissantCrumbsJobRunner.get_job_type(),
         ]
         raise KeyError(f"Unsupported job type: '{job_type}'. The supported job types are: {supported_job_types}")

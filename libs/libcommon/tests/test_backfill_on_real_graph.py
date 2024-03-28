@@ -56,6 +56,7 @@ def test_plan_job_creation_and_termination() -> None:
                 "dataset-parquet,dataset,revision",
                 "dataset-size,dataset,revision",
                 "dataset-split-names,dataset,revision",
+                "dataset-croissant-crumbs,dataset,revision",
             ],
             "cache_is_error_to_retry": [],
             "cache_is_job_runner_obsolete": [],
@@ -64,7 +65,7 @@ def test_plan_job_creation_and_termination() -> None:
         # The queue is empty, so no step is in process.
         queue_status={"in_process": []},
         # The root dataset-level steps, as well as the "fan-in" steps, are ready to be backfilled.
-        tasks=["CreateJobs,11"],
+        tasks=["CreateJobs,12"],
     )
 
     dataset_backfill_plan.run()
@@ -92,6 +93,7 @@ def test_plan_job_creation_and_termination() -> None:
                 "dataset-parquet,dataset,revision",
                 "dataset-size,dataset,revision",
                 "dataset-split-names,dataset,revision",
+                "dataset-croissant-crumbs,dataset,revision",
             ],
             "cache_is_error_to_retry": [],
             "cache_is_job_runner_obsolete": [],
@@ -111,6 +113,7 @@ def test_plan_job_creation_and_termination() -> None:
                 "dataset-compatible-libraries,dataset,revision",
                 "dataset-modalities,dataset,revision",
                 "dataset-split-names,dataset,revision",
+                "dataset-croissant-crumbs,dataset,revision",
             ]
         },
         # thus: no new task
@@ -173,6 +176,7 @@ def test_plan_job_creation_and_termination() -> None:
                 "dataset-parquet,dataset,revision",
                 "dataset-size,dataset,revision",
                 "dataset-split-names,dataset,revision",
+                "dataset-croissant-crumbs,dataset,revision",
             ],
             "cache_is_error_to_retry": [],
             "cache_is_job_runner_obsolete": [],
@@ -191,6 +195,7 @@ def test_plan_job_creation_and_termination() -> None:
                 "dataset-compatible-libraries,dataset,revision",
                 "dataset-modalities,dataset,revision",
                 "dataset-split-names,dataset,revision",
+                "dataset-croissant-crumbs,dataset,revision",
             ]
         },
         tasks=["CreateJobs,18"],

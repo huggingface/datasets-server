@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2022 The HuggingFace Authors.
 
-
 from libcommon.processing_graph import processing_graph
 from pytest import raises
 
@@ -61,6 +60,11 @@ def test_endpoints_definition() -> None:
     assert is_valid["config"] is not None
     assert is_valid["split"] is not None
 
+    croissant_crumbs = definition["/croissant-crumbs"]
+    assert croissant_crumbs is not None
+    assert sorted(list(croissant_crumbs)) == ["dataset"]
+    assert croissant_crumbs["dataset"] is not None
+
     # assert old deleted endpoints don't exist
     with raises(KeyError):
         _ = definition["/dataset-info"]
@@ -68,3 +72,5 @@ def test_endpoints_definition() -> None:
         _ = definition["/parquet-and-dataset-info"]
     with raises(KeyError):
         _ = definition["/config-names"]
+    with raises(KeyError):
+        _ = definition["/croissant"]

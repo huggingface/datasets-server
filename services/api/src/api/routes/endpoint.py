@@ -21,6 +21,7 @@ from libapi.utils import (
     get_json_error_response,
     get_json_ok_response,
 )
+from libcommon.croissant_utils import truncate_features_from_croissant_crumbs_response
 from libcommon.exceptions import NotSupportedError
 from libcommon.processing_graph import InputType, ProcessingGraph, ProcessingStep
 from libcommon.prometheus import StepProfiler
@@ -122,6 +123,8 @@ def create_endpoint(
                         dataset, config, split, step_by_input_type
                     )
                     processing_step = step_by_input_type[input_type]
+                    # full: only used in /croissant-crumbs endpoint
+                    full = get_request_parameter(request, "full", default="true").lower() != "false"
                 # if auth_check fails, it will raise an exception that will be caught below
                 with StepProfiler(method="processing_step_endpoint", step="check authentication", context=context):
                     await auth_check(
@@ -163,6 +166,13 @@ def create_endpoint(
                     if endpoint_name == "/first-rows" and assets_storage_client.url_signer:
                         with StepProfiler(method="processing_step_endpoint", step="sign assets urls", context=context):
                             assets_storage_client.url_signer.sign_urls_in_first_rows_in_place(content)
+                    elif endpoint_name == "/croissant-crumbs" and not full:
+                        with StepProfiler(
+                            method="processing_step_endpoint",
+                            step="truncate features from croissant-crumbs response",
+                            context=context,
+                        ):
+                            truncate_features_from_croissant_crumbs_response(content)
                     with StepProfiler(method="processing_step_endpoint", step="generate OK response", context=context):
                         return get_json_ok_response(content=content, max_age=max_age_long, revision=revision)
 

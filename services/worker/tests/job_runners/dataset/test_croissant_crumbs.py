@@ -1,8 +1,10 @@
-from unittest.mock import patch
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2024 The HuggingFace Authors.
 
-import pytest
 
-from api.routes.croissant_crumbs import get_croissant_crumbs_from_dataset_infos
+from worker.job_runners.dataset.croissant_crumbs import (
+    get_croissant_crumbs_from_dataset_infos,
+)
 
 squad_info = {
     "description": "Stanford Question Answering Dataset (SQuAD) is a reading comprehension dataset, consisting of questions posed by crowdworkers on a set of Wikipedia articles, where the answer to every question is a segment of text, or span, from the corresponding reading passage, or the question might be unanswerable.\n",
@@ -93,20 +95,14 @@ v1_context = {
 
 def test_get_croissant_context_from_dataset_infos() -> None:
     croissant_crumbs = get_croissant_crumbs_from_dataset_infos(
-        "user/squad with space",
-        [squad_info, squad_info],
-        partial=False,
-        full_jsonld=False,
+        "user/squad with space", [squad_info, squad_info], partial=False, truncated_configs=False
     )
     assert croissant_crumbs["@context"] == v1_context
 
 
 def test_get_croissant_crumbs_from_dataset_infos() -> None:
     croissant_crumbs = get_croissant_crumbs_from_dataset_infos(
-        "user/squad with space",
-        [squad_info, squad_info],
-        partial=False,
-        full_jsonld=False,
+        "user/squad with space", [squad_info, squad_info], partial=False, truncated_configs=False
     )
     assert "@context" in croissant_crumbs
     assert "@type" in croissant_crumbs
@@ -153,25 +149,3 @@ def test_get_croissant_crumbs_from_dataset_infos() -> None:
         assert "@id" in distribution
         if "containedIn" in distribution:
             assert "@id" in distribution["containedIn"]
-
-
-MAX_COLUMNS = 3
-
-
-@pytest.mark.parametrize(
-    ("full_jsonld", "num_columns"),
-    [
-        (True, 4),
-        (False, MAX_COLUMNS),
-    ],
-)
-def test_get_croissant_crumbs_from_dataset_infos_max_columns(full_jsonld: bool, num_columns: int) -> None:
-    with patch("api.routes.croissant_crumbs.MAX_COLUMNS", MAX_COLUMNS):
-        croissant_crumbs = get_croissant_crumbs_from_dataset_infos(
-            "user/squad with space",
-            [squad_info, squad_info],
-            partial=False,
-            full_jsonld=full_jsonld,
-        )
-    assert len(croissant_crumbs["recordSet"][0]["field"]) == num_columns
-    assert full_jsonld or "max number of columns reached" in croissant_crumbs["recordSet"][0]["description"]
