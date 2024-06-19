@@ -76,6 +76,7 @@ def test_create_job_runner(
         "job_id": "job_id",
         "priority": Priority.NORMAL,
         "difficulty": 50,
+        "started_at": None,
     }
 
     if level in {"split", "config"}:

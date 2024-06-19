@@ -34,6 +34,7 @@ def test_failed_creation(app_config: AppConfig) -> None:
                 },
                 "priority": Priority.NORMAL,
                 "difficulty": 50,
+                "started_at": None,
             },
             app_config=app_config,
         )
@@ -54,6 +55,7 @@ def test_success_creation(app_config: AppConfig) -> None:
                 },
                 "priority": Priority.NORMAL,
                 "difficulty": 50,
+                "started_at": None,
             },
             app_config=app_config,
         )

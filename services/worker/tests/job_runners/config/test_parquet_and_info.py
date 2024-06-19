@@ -97,6 +97,7 @@ def get_job_runner(
                 "job_id": "job_id",
                 "priority": Priority.NORMAL,
                 "difficulty": 50,
+                "started_at": None,
             },
             app_config=app_config,
             hf_datasets_cache=libraries_resource.hf_datasets_cache,
@@ -544,6 +545,7 @@ def get_dataset_config_names_job_runner(
                 "job_id": "job_id",
                 "priority": Priority.NORMAL,
                 "difficulty": 50,
+                "started_at": None,
             },
             app_config=app_config,
             hf_datasets_cache=libraries_resource.hf_datasets_cache,
@@ -573,6 +575,7 @@ def launch_job_runner(job_runner_args: JobRunnerArgs) -> CompleteJobResult:
             params=JobParams(dataset=dataset, revision=revision, config=config, split=None),
             priority=Priority.NORMAL,
             difficulty=50,
+            started_at=None,
         ),
         app_config=app_config,
         hf_datasets_cache=tmp_path,
@@ -609,6 +612,7 @@ def test_concurrency(
         params=JobParams(dataset=repo_id, revision=revision, config=None, split=None),
         priority=Priority.NORMAL,
         difficulty=50,
+        started_at=None,
     )
     queue = Queue()
     queue.create_jobs([job_info])

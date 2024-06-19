@@ -78,6 +78,7 @@ def get_job_runner(
                 "job_id": "job_id",
                 "priority": Priority.NORMAL,
                 "difficulty": 50,
+                "started_at": None,
             },
             app_config=app_config,
             hf_datasets_cache=libraries_resource.hf_datasets_cache,

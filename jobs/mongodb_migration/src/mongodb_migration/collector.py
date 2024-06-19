@@ -71,6 +71,9 @@ from mongodb_migration.migrations._20240221160700_cache_merge_split_first_rows i
 from mongodb_migration.migrations._20240221160800_cache_set_updated_at_to_root_step import (
     MigrationSetUpdatedAtToOldestStep,
 )
+from mongodb_migration.migrations._20240618153700_cache_add_started_at import (
+    MigrationAddStartedAtToCacheResponse,
+)
 from mongodb_migration.renaming_migrations import (
     CacheRenamingMigration,
     QueueRenamingMigration,
@@ -356,5 +359,9 @@ class MigrationsCollector:
                 cache_kind="dataset-loading-tags",
                 new_cache_kind="dataset-compatible-libraries",
                 version="20240307191000",
+            ),
+            MigrationAddStartedAtToCacheResponse(
+                version="20240618153700",
+                description="add the 'started_at' field with the default value None to the cached results",
             ),
         ]

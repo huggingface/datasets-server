@@ -54,6 +54,7 @@ def test_check_type(
         },
         priority=Priority.NORMAL,
         difficulty=50,
+        started_at=None,
     )
     with pytest.raises(ValueError):
         job_runner = DummyJobRunner(
@@ -73,6 +74,7 @@ def test_check_type(
         },
         priority=Priority.NORMAL,
         difficulty=50,
+        started_at=None,
     )
     job_runner = DummyJobRunner(
         job_info=job_info,

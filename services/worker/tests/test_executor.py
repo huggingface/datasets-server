@@ -44,6 +44,7 @@ def get_job_info(prefix: str = "base") -> JobInfo:
         },
         priority=Priority.LOW,
         difficulty=50,
+        started_at=None,
     )
 
 

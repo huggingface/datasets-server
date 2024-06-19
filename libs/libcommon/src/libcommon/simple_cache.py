@@ -130,6 +130,7 @@ class CachedResponseDocument(Document):
         error_code (`str`, *optional*): The error code, if any.
         content (`dict`): The content of the cached response. Can be an error or a valid content.
         details (`dict`, *optional*): Additional details, eg. a detailed error that we don't want to send as a response.
+        started_at (`datetime`, *optional*): When the cache entry's last job started.
         updated_at (`datetime`): When the cache entry has been last updated.
         job_runner_version (`int`): The version of the job runner that cached the response.
         failed_runs (`int`): The number of failed_runs to get cached result.
@@ -152,6 +153,7 @@ class CachedResponseDocument(Document):
     job_runner_version = IntField()
     failed_runs = IntField(default=0)
     details = DictField()
+    started_at = DateTimeField()
     updated_at = DateTimeField(default=get_datetime)
 
     meta = {
@@ -278,6 +280,7 @@ def upsert_response(
     details: Optional[Mapping[str, Any]] = None,
     job_runner_version: Optional[int] = None,
     progress: Optional[float] = None,
+    started_at: Optional[datetime] = None,
     updated_at: Optional[datetime] = None,
     failed_runs: int = 0,
 ) -> None:
@@ -289,6 +292,7 @@ def upsert_response(
         details=details,
         dataset_git_revision=dataset_git_revision,
         progress=progress,
+        started_at=started_at,
         updated_at=updated_at or get_datetime(),
         job_runner_version=job_runner_version,
         failed_runs=failed_runs,
@@ -305,6 +309,7 @@ def upsert_response_params(
     details: Optional[Mapping[str, Any]] = None,
     job_runner_version: Optional[int] = None,
     progress: Optional[float] = None,
+    started_at: Optional[datetime] = None,
     updated_at: Optional[datetime] = None,
     failed_runs: int = 0,
 ) -> None:
@@ -326,6 +331,7 @@ def upsert_response_params(
         http_status=http_status,
         job_runner_version=job_runner_version,
         progress=progress,
+        started_at=started_at,
         updated_at=updated_at,
         failed_runs=failed_runs,
     )
