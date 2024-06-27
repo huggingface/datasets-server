@@ -9,7 +9,7 @@ from typing import Any
 
 from datasets import ClassLabel, Features, Image, Value
 from libcommon.constants import CROISSANT_MAX_CONFIGS
-from libcommon.croissant_utils import get_record_set
+from libcommon.croissant_utils import get_record_set, feature_to_croissant_field
 from libcommon.exceptions import PreviousStepFormatError
 from libcommon.simple_cache import (
     get_previous_step_or_raise,
@@ -17,15 +17,6 @@ from libcommon.simple_cache import (
 
 from worker.dtos import CompleteJobResult
 from worker.job_runners.dataset.dataset_job_runner import DatasetJobRunner
-
-HF_TO_CROISSANT_VALUE_TYPE = {
-    "string": "sc:Text",
-    "int32": "sc:Integer",
-    "int64": "sc:Integer",
-    "float32": "sc:Float",
-    "float64": "sc:Float",
-    "bool": "sc:Boolean",
-}
 
 NAME_PATTERN_REGEX = "[^a-zA-Z0-9\\-_\\.]"
 
@@ -105,44 +96,9 @@ def get_croissant_crumbs_from_dataset_infos(
         for column, feature in features.items():
             fields_names: set[str] = set()
             field_name = f"{record_set_name}/{_escape_name(column, fields_names)}"
-            if isinstance(feature, Value) and feature.dtype in HF_TO_CROISSANT_VALUE_TYPE:
-                fields.append(
-                    {
-                        "@type": "cr:Field",
-                        "@id": field_name,
-                        "name": field_name,
-                        "description": f"Column '{column}' from the Hugging Face parquet file.",
-                        "dataType": HF_TO_CROISSANT_VALUE_TYPE[feature.dtype],
-                        "source": {"fileSet": {"@id": distribution_name}, "extract": {"column": column}},
-                    }
-                )
-            elif isinstance(feature, Image):
-                fields.append(
-                    {
-                        "@type": "cr:Field",
-                        "@id": field_name,
-                        "name": field_name,
-                        "description": f"Image column '{column}' from the Hugging Face parquet file.",
-                        "dataType": "sc:ImageObject",
-                        "source": {
-                            "fileSet": {"@id": distribution_name},
-                            "extract": {"column": column},
-                            "transform": {"jsonPath": "bytes"},
-                        },
-                    }
-                )
-            elif isinstance(feature, ClassLabel):
-                fields.append(
-                    {
-                        "@type": "cr:Field",
-                        "@id": field_name,
-                        "name": field_name,
-                        "description": f"ClassLabel column '{column}' from the Hugging Face parquet file.\nLabels:\n"
-                        + ", ".join(f"{name} ({i})" for i, name in enumerate(feature.names)),
-                        "dataType": "sc:Integer",
-                        "source": {"fileSet": {"@id": distribution_name}, "extract": {"column": column}},
-                    }
-                )
+            field = feature_to_croissant_field(distribution_name, field_name, column, feature)
+            if field:
+                fields.append(field)
             else:
                 skipped_columns.append(column)
         description = f"{dataset} - '{config}' subset"
