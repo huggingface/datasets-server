@@ -4,7 +4,7 @@
 import logging
 import time
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import InitVar, dataclass, field
 from functools import lru_cache
 from http import HTTPStatus
 from typing import Optional, Union
@@ -148,13 +148,15 @@ class CreateJobsTask(Task):
 
 @dataclass
 class DeleteWaitingJobsTask(Task):
-    jobs_df: pd.DataFrame
+    job_ids: list[str] = field(init=False)
+    jobs_df: InitVar[pd.DataFrame]
 
-    def __post_init__(self) -> None:
+    def __post_init__(self, jobs_df: pd.DataFrame) -> None:
         # for debug and testing
-        self.id = f"DeleteWaitingJobs,{len(self.jobs_df)}"
-        types = [row["type"] for _, row in self.jobs_df.iterrows()]
+        self.id = f"DeleteWaitingJobs,{len(jobs_df)}"
+        types = jobs_df["type"].tolist()
         self.long_id = f"DeleteWaitingJobs,{types}"
+        self.job_ids = jobs_df["job_id"].tolist()
 
     def run(self) -> TasksStatistics:
         """
@@ -167,7 +169,7 @@ class DeleteWaitingJobsTask(Task):
             method="DeleteWaitingJobsTask.run",
             step="all",
         ):
-            num_deleted_waiting_jobs = Queue().delete_waiting_jobs_by_job_id(job_ids=self.jobs_df["job_id"].tolist())
+            num_deleted_waiting_jobs = Queue().delete_waiting_jobs_by_job_id(job_ids=self.job_ids)
             logging.debug(f"{num_deleted_waiting_jobs} waiting jobs were deleted.")
             return TasksStatistics(num_deleted_waiting_jobs=num_deleted_waiting_jobs)
 
@@ -470,6 +472,8 @@ class AfterJobPlan(Plan):
             self.add_task(DeleteWaitingJobsTask(jobs_df=self.pending_jobs_df))
         if self.job_infos_to_create:
             self.add_task(CreateJobsTask(job_infos=self.job_infos_to_create))
+        del self.pending_jobs_df
+        del self.job_infos_to_create
 
     def update(
         self,
@@ -544,8 +548,6 @@ class DatasetBackfillPlan(Plan):
     only_first_processing_steps: bool = False
     processing_graph: ProcessingGraph = field(default=processing_graph)
 
-    pending_jobs_df: pd.DataFrame = field(init=False)
-    cache_entries_df: pd.DataFrame = field(init=False)
     dataset_state: DatasetState = field(init=False)
     cache_status: CacheStatus = field(init=False)
 
@@ -567,7 +569,7 @@ class DatasetBackfillPlan(Plan):
                     if self.only_first_processing_steps
                     else None
                 )
-                self.pending_jobs_df = Queue().get_pending_jobs_df(
+                pending_jobs_df = Queue().get_pending_jobs_df(
                     dataset=self.dataset,
                     job_types=job_types,
                 )
@@ -583,7 +585,7 @@ class DatasetBackfillPlan(Plan):
                     if self.only_first_processing_steps
                     else None
                 )
-                self.cache_entries_df = get_cache_entries_df(
+                cache_entries_df = get_cache_entries_df(
                     dataset=self.dataset,
                     cache_kinds=cache_kinds,
                 )
@@ -597,16 +599,16 @@ class DatasetBackfillPlan(Plan):
                         dataset=self.dataset,
                         processing_graph=self.processing_graph,
                         revision=self.revision,
-                        pending_jobs_df=self.pending_jobs_df,
-                        cache_entries_df=self.cache_entries_df,
+                        pending_jobs_df=pending_jobs_df,
+                        cache_entries_df=cache_entries_df,
                     )
                     if self.only_first_processing_steps
                     else DatasetState(
                         dataset=self.dataset,
                         processing_graph=self.processing_graph,
                         revision=self.revision,
-                        pending_jobs_df=self.pending_jobs_df,
-                        cache_entries_df=self.cache_entries_df,
+                        pending_jobs_df=pending_jobs_df,
+                        cache_entries_df=cache_entries_df,
                     )
                 )
             with StepProfiler(
@@ -618,7 +620,7 @@ class DatasetBackfillPlan(Plan):
                 method="DatasetBackfillPlan.__post_init__",
                 step="_create_plan",
             ):
-                self._create_plan()
+                self._create_plan(pending_jobs_df)
 
     def _get_artifact_states_for_step(
         self, processing_step: ProcessingStep, config: Optional[str] = None, split: Optional[str] = None
@@ -744,8 +746,8 @@ class DatasetBackfillPlan(Plan):
             }
         )
 
-    def _create_plan(self) -> None:
-        pending_jobs_to_delete_df = self.pending_jobs_df.copy()
+    def _create_plan(self, pending_jobs_df: pd.DataFrame) -> None:
+        pending_jobs_to_delete_df = pending_jobs_df.copy()
         job_infos_to_create: list[JobInfo] = []
         artifact_states = (
             list(self.cache_status.cache_is_empty.values())
