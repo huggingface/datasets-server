@@ -894,7 +894,8 @@
           "dataset",
           "num_bytes_parquet_files",
           "num_bytes_memory",
-          "num_rows"
+          "num_rows",
+          "estimated_num_rows"
         ],
         "properties": {
           "dataset": {
@@ -911,7 +912,8 @@
           },
           "num_rows": {
             "type": "integer"
-          }
+          },
+          "estimated_num_rows": { "anyOf": [{ "type": "integer" }, { "type": "null" }] }
         }
       },
       "ConfigSize": {
@@ -922,7 +924,8 @@
           "num_bytes_parquet_files",
           "num_bytes_memory",
           "num_rows",
-          "num_columns"
+          "num_columns",
+          "estimated_num_rows"
         ],
         "properties": {
           "dataset": {
@@ -945,7 +948,8 @@
           },
           "num_columns": {
             "type": "integer"
-          }
+          },
+          "estimated_num_rows": { "anyOf": [{ "type": "integer" }, { "type": "null" }] }
         }
       },
       "SplitSize": {
@@ -957,7 +961,8 @@
           "num_bytes_parquet_files",
           "num_bytes_memory",
           "num_rows",
-          "num_columns"
+          "num_columns",
+          "estimated_num_rows"
         ],
         "properties": {
           "dataset": {
@@ -980,7 +985,8 @@
           },
           "num_columns": {
             "type": "integer"
-          }
+          },
+          "estimated_num_rows": { "anyOf": [{ "type": "integer" }, { "type": "null" }] }
         }
       },
       "DatasetSizeResponse": {
@@ -5108,45 +5114,49 @@
                 "examples": {
                   "dataset size": {
                     "summary": "size of a dataset.",
-                    "description": "Try with https://datasets-server.huggingface.co/size?dataset=mnist",
+                    "description": "Try with https://datasets-server.huggingface.co/size?dataset=ylecun/mnist",
                     "value": {
                       "size": {
                         "dataset": {
-                          "dataset": "mnist",
+                          "dataset": "ylecun/mnist",
                           "num_bytes_original_files": 11594722,
                           "num_bytes_parquet_files": 18157506,
                           "num_bytes_memory": 20387582,
-                          "num_rows": 70000
+                          "num_rows": 70000,
+                          "estimated_num_rows": null
                         },
                         "configs": [
                           {
-                            "dataset": "mnist",
+                            "dataset": "ylecun/mnist",
                             "config": "mnist",
                             "num_bytes_original_files": 11594722,
                             "num_bytes_parquet_files": 18157506,
                             "num_bytes_memory": 20387582,
                             "num_rows": 70000,
-                            "num_columns": 2
+                            "num_columns": 2,
+                            "estimated_num_rows": null
                           }
                         ],
                         "splits": [
                           {
-                            "dataset": "mnist",
+                            "dataset": "ylecun/mnist",
                             "config": "mnist",
                             "split": "train",
                             "num_bytes_parquet_files": 15561616,
                             "num_bytes_memory": 17471100,
                             "num_rows": 60000,
-                            "num_columns": 2
+                            "num_columns": 2,
+                            "estimated_num_rows": null
                           },
                           {
-                            "dataset": "mnist",
+                            "dataset": "ylecun/mnist",
                             "config": "mnist",
                             "split": "test",
                             "num_bytes_parquet_files": 2595890,
                             "num_bytes_memory": 2916482,
                             "num_rows": 10000,
-                            "num_columns": 2
+                            "num_columns": 2,
+                            "estimated_num_rows": null
                           }
                         ]
                       },
@@ -5167,7 +5177,8 @@
                           "num_bytes_parquet_files": 80767,
                           "num_bytes_memory": 237694,
                           "num_rows": 1104,
-                          "num_columns": 4
+                          "num_columns": 4,
+                          "estimated_num_rows": null
                         },
                         "splits": [
                           {
@@ -5177,7 +5188,8 @@
                             "num_bytes_parquet_files": 80767,
                             "num_bytes_memory": 237694,
                             "num_rows": 1104,
-                            "num_columns": 4
+                            "num_columns": 4,
+                            "estimated_num_rows": null
                           }
                         ]
                       },
@@ -5194,7 +5206,8 @@
                           "num_bytes_original_files": 0,
                           "num_bytes_parquet_files": 0,
                           "num_bytes_memory": 0,
-                          "num_rows": 0
+                          "num_rows": 0,
+                          "estimated_num_rows": null
                         },
                         "configs": [],
                         "splits": []
